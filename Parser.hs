@@ -5,9 +5,10 @@ import Prelude hiding (lookup)
 
 data AST = ASum Operator AST AST
          | AProd Operator AST AST
-         | AAssign Char AST
+         | APow Operator AST AST
+         | AAssign String AST
          | ANum Integer
-         | AIdent Char
+         | AIdent String
 
 parse :: String -> Maybe AST
 parse input =
@@ -21,26 +22,35 @@ parse input =
 
 expression :: [Token] -> (AST, [Token])
 expression ts =
-  let (termNode, ts') = term ts in
+  let (termpNode, ts') = termp ts in
   case lookup ts' of
     TOp op | op == Plus || op == Minus ->
       let (exprNode, ts'') = expression $ accept ts' in
-      (ASum op termNode exprNode, ts'')
+      (ASum op termpNode exprNode, ts'')
     TAssign ->
-      case termNode of
+      case termpNode of
         AIdent v -> let (exprNode, ts'') = expression $ accept ts' in
                     (AAssign v exprNode, ts'')
         _ -> error "Syntax error: assignment is only possible to identifiers"
-    _ -> (termNode, ts')
+    _ -> (termpNode, ts')
 
 term :: [Token] -> (AST, [Token])
 term ts =
   let (factNode, ts') = factor ts in
   case lookup ts' of
     TOp op | op == Mult || op == Div ->
-      let (termNode, ts'') = term $ accept ts' in
-      (AProd op factNode termNode, ts'')
+      let (termpNode, ts'') = termp $ accept ts' in
+      (AProd op factNode termpNode, ts'')
     _ -> (factNode, ts')
+
+termp :: [Token] -> (AST, [Token])
+termp ts =
+  let (factNode, ts') = factor ts in
+  case lookup ts' of
+    TOp op | op == Pow ->
+      let (termpNode, ts'') = termp $ accept ts' in
+      (APow op factNode termpNode, ts'')
+    _ -> term ts
 
 factor :: [Token] -> (AST, [Token])
 factor ts =
@@ -68,7 +78,8 @@ instance Show AST where
         (case t of
                   ASum  op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
                   AProd op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
-                  AAssign  v e -> v : " =\n" ++ show' (ident n) e
+                  APow op l r  -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
+                  AAssign  v e -> v ++ " =\n" ++ show' (ident n) e
                   ANum   i     -> show i
                   AIdent i     -> show i)
       ident = (+1)
@@ -76,3 +87,4 @@ instance Show AST where
       showOp Minus = '-'
       showOp Mult  = '*'
       showOp Div   = '/'
+      showOp Pow   = '^'
