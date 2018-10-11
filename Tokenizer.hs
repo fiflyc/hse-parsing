@@ -1,61 +1,19 @@
 module Tokenizer where
 
-data Token = TDigit Integer
-           | TIdent String
-           | TOp Operator
-           | TLParen
-           | TRParen
-           | TAssign
-           | TEof
-           deriving (Show, Eq)
-
 data Operator = Plus
               | Minus
               | Mult
               | Div
-              | Pow
               deriving (Show, Eq)
 
-tokenize :: String -> [Token]
-tokenize [] = [TEof]
-tokenize str =
-        case t of
-          TDigit x ->
-            case head ts of
-              TDigit y -> TDigit (imerge x y) : (drop 1 ts)
-              otherwise -> t : ts
-          TIdent s ->
-            case head ts of
-              TIdent ss -> TIdent (s ++ ss) : (drop 1 ts)
-              otherwise -> t : ts
-          otherwise -> t : ts
-        where
-          t = head $ strtosym str
-          ts = tokenize $ drop 1 $ delSpaces str
-
-strtosym :: String -> [Token]
-strtosym [] = [TEof]
-strtosym (c : cs) | isOperator c   = TOp (operator c) : strtosym cs
-                  | isDigit c      = TDigit (digit c) : strtosym cs
-                  | isAlpha c      = TIdent [alpha c] : strtosym cs
-                  | c == '('       = TLParen : strtosym cs
-                  | c == ')'       = TRParen : strtosym cs
-                  | c == '='       = TAssign : strtosym cs
-                  | isWhiteSpace c = strtosym cs
-                  | otherwise = error ("Lexical error: unacceptable character " ++ [c])
-
-imerge :: Integer -> Integer -> Integer
-imerge a b = read $ (show a) ++ (show b) :: Integer
-
 isOperator :: Char -> Bool
-isOperator x = x `elem` "+-*/^"
+isOperator x = x `elem` "+-*/"
 
 operator :: Char -> Operator
 operator c | c == '+' = Plus
            | c == '-' = Minus
            | c == '*' = Mult
            | c == '/' = Div
-           | c == '^' = Pow
 operator c = error ("Lexical error: " ++ c : " is not an operator!")
 
 isDigit :: Char -> Bool
@@ -82,8 +40,3 @@ alpha c = c
 
 isWhiteSpace :: Char -> Bool
 isWhiteSpace c = c `elem` " \t\n"
-
-delSpaces :: String -> String
-delSpaces [] = []
-delSpaces (c : str) | c `elem` " \t\n" = delSpaces str
-                    | otherwise = c : delSpaces str 

@@ -1,84 +1,81 @@
-module Parser where
+module Parser (parse) where -- only expose the top-level parsing function
 
-import Tokenizer
-import Prelude hiding (lookup)
+import Combinators
+import qualified Tokenizer as T
+import Prelude hiding (lookup, (>>=), map, pred, return, elem)
 
-data AST = ASum Operator AST AST
-         | AProd Operator AST AST
-         | APow Operator AST AST
-         | AAssign String AST
-         | AUnary AST
+data AST = ASum T.Operator AST AST
+         | AProd T.Operator AST AST
+         | AAssign Char AST
          | ANum Integer
-         | AIdent String
+         | AIdent Char
 
-parse :: String -> Maybe AST
+-- TODO: Rewrite this without using Success and Error
+parse :: String -> Maybe (Result AST)
 parse input =
-  let ts = tokenize input in
-  case ts of
-    [TEof] -> Nothing
-    _ -> let (tree, ts') = expression ts in
-         if ts' == [TEof]
-         then Just tree
-         else error ("Parsing error on: " ++ show ts')
+  case input of
+    [] -> Nothing
+    _ -> case expression input of
+           Success (tree, ts') ->
+             if null ts'
+             then Just (Success tree)
+             else Just (Error ("Syntax error on: " ++ show ts')) -- Only a prefix of the input is parsed
+           Error err -> Just (Error err) -- Legitimate syntax error
 
-expression :: [Token] -> (AST, [Token])
-expression ts =
-  let (termpNode, ts') = termp ts in
-  case lookup ts' of
-    TOp op | op == Plus || op == Minus ->
-      let (exprNode, ts'') = expression $ accept ts' in
-      (ASum op termpNode exprNode, ts'')
-    TAssign ->
-      case termpNode of
-        AIdent v -> let (exprNode, ts'') = expression $ accept ts' in
-                    (AAssign v exprNode, ts'')
-        _ -> error "Syntax error: assignment is only possible to identifiers"
-    _ -> (termpNode, ts')
+expression :: Parser AST
+expression =
+  ( identifier >>= \(AIdent i) ->
+    assignment |>
+    expression >>= \e -> return (AAssign i e)
+  )
+  <|> ( term       >>= \l  -> -- Here the identifier is parsed twice :(
+        plusMinus  >>= \op ->
+        expression >>= \r  -> return (ASum op l r)
+      )
+  <|> term
 
-term :: [Token] -> (AST, [Token])
-term ts =
-  let (factNode, ts') = unary ts in
-  case lookup ts' of
-    TOp op | op == Mult || op == Div ->
-      let (termpNode, ts'') = termp $ accept ts' in
-      (AProd op factNode termpNode, ts'')
-    _ -> (factNode, ts')
+term :: Parser AST
+term =
+  -- make sure we don't reparse the factor (Term -> Factor (('/' | '*') Term | epsilon ))
+  factor >>= \l ->
+  ( ( divMult >>= \op ->
+      term    >>= \r  -> return (AProd op l r)
+    )
+    <|> return l
+  )
 
-termp :: [Token] -> (AST, [Token])
-termp ts =
-  let (factNode, ts') = unary ts in
-  case lookup ts' of
-    TOp op | op == Pow ->
-      let (termpNode, ts'') = termp $ accept ts' in
-      (APow op factNode termpNode, ts'')
-    _ -> term ts
+factor :: Parser AST
+factor =
+  ( lparen |>
+    expression >>= \e ->
+    rparen |> return e -- No need to keep the parentheses
+  )
+  <|> identifier
+  <|> digit
 
-unary :: [Token] -> (AST, [Token])
-unary ts =
-  case lookup ts of 
-  	TOp op | op == Minus ->
-  	  let (factNode, ts') = factor $ accept ts in
-  	  (AUnary factNode, ts')
-  	_ -> factor ts
+digit :: Parser AST
+digit      = map (ANum   . T.digit) (sat T.isDigit elem)
+
+identifier :: Parser AST
+identifier = map (AIdent . T.alpha) (sat T.isAlpha elem)
+
+lparen :: Parser Char
+lparen = char '('
+
+rparen :: Parser Char
+rparen = char ')'
+
+assignment :: Parser Char
+assignment = char '='
+
+plusMinus :: Parser T.Operator
+plusMinus = map T.operator (char '+' <|> char '-')
+
+divMult :: Parser T.Operator
+divMult   = map T.operator (char '/' <|> char '*')
 
 
-factor :: [Token] -> (AST, [Token])
-factor ts =
-  case lookup ts of
-    TLParen ->
-      let (exprNode, ts') = expression $ accept ts in
-      case lookup ts' of
-        TRParen -> (exprNode, accept ts')
-        _ -> error "Syntax error: mismatched parentheses"
-    TIdent v -> (AIdent v, accept ts)
-    TDigit d -> (ANum d, accept ts)
-    _ -> error "Syntax error: factor can only be a digit, an identifier or a parenthesised expression"
 
-lookup :: [Token] -> Token
-lookup = head
-
-accept :: [Token] -> [Token]
-accept = tail
 
 instance Show AST where
   show tree = "\n" ++ show' 0 tree
@@ -88,14 +85,11 @@ instance Show AST where
         (case t of
                   ASum  op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
                   AProd op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
-                  APow op l r  -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
-                  AAssign  v e -> v ++ " =\n" ++ show' (ident n) e
-                  AUnary e     -> "-\n" ++ show' (ident n) e
+                  AAssign  v e -> v : " =\n" ++ show' (ident n) e
                   ANum   i     -> show i
                   AIdent i     -> show i)
       ident = (+1)
-      showOp Plus  = '+'
-      showOp Minus = '-'
-      showOp Mult  = '*'
-      showOp Div   = '/'
-      showOp Pow   = '^'
+      showOp T.Plus  = '+'
+      showOp T.Minus = '-'
+      showOp T.Mult  = '*'
+      showOp T.Div   = '/'
