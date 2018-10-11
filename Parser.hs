@@ -7,6 +7,7 @@ data AST = ASum Operator AST AST
          | AProd Operator AST AST
          | APow Operator AST AST
          | AAssign String AST
+         | AUnary AST
          | ANum Integer
          | AIdent String
 
@@ -36,7 +37,7 @@ expression ts =
 
 term :: [Token] -> (AST, [Token])
 term ts =
-  let (factNode, ts') = factor ts in
+  let (factNode, ts') = unary ts in
   case lookup ts' of
     TOp op | op == Mult || op == Div ->
       let (termpNode, ts'') = termp $ accept ts' in
@@ -45,12 +46,21 @@ term ts =
 
 termp :: [Token] -> (AST, [Token])
 termp ts =
-  let (factNode, ts') = factor ts in
+  let (factNode, ts') = unary ts in
   case lookup ts' of
     TOp op | op == Pow ->
       let (termpNode, ts'') = termp $ accept ts' in
       (APow op factNode termpNode, ts'')
     _ -> term ts
+
+unary :: [Token] -> (AST, [Token])
+unary ts =
+  case lookup ts of 
+  	TOp op | op == Minus ->
+  	  let (factNode, ts') = factor $ accept ts in
+  	  (AUnary factNode, ts')
+  	_ -> factor ts
+
 
 factor :: [Token] -> (AST, [Token])
 factor ts =
@@ -80,6 +90,7 @@ instance Show AST where
                   AProd op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
                   APow op l r  -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
                   AAssign  v e -> v ++ " =\n" ++ show' (ident n) e
+                  AUnary e     -> "-\n" ++ show' (ident n) e
                   ANum   i     -> show i
                   AIdent i     -> show i)
       ident = (+1)

@@ -7,10 +7,12 @@ S -> Expr | \epsilon
 Expr -> Ident = Expr
       | TermP ((+ | -) Expr)?
 
-TermP -> Factor (^ TermP)?
+TermP -> Unary (^ TermP)?
       | Term
 
-Term -> Factor ((* | /) TermP)?
+Term -> Unary ((* | /) TermP)?
+
+Unary -> -Factor | Factor
 
 Factor -> Ident 
         | Num 
