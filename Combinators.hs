@@ -18,8 +18,9 @@ type Parser r = Input -> Result (r, Input)
 infixl 6 <|>
 (<|>) :: Parser a -> Parser a -> Parser a
 p <|> q = \inp ->
-  case p inp of
-    Error _ -> q inp
+  let inp' = delSpaces inp in
+  case p inp' of
+    Error _ -> q inp'
     result  -> result
 
 -- Sequential combinator: if the first parser successfully parses some prefix, the second is run on the suffix
@@ -46,7 +47,7 @@ zero err = const $ Error err
 
 -- Chops of the first element of the string
 elem :: Parser Char
-elem (c : cs) = Success (c, cs)
+elem (c : cs) = Success (c, cs) 
 elem [] = Error "Empty string"
 
 -- Checks if the first character of the string is the given one
@@ -67,3 +68,10 @@ map f parser inp =
   case parser inp of
     Success (r, inp') -> Success (f r, inp')
     Error err -> Error err
+
+delSpaces :: String -> String
+delSpaces [] = []
+delSpaces (c : str) | c == ' '  = delSpaces str
+                    | c == '\n' = delSpaces str
+                    | c == '\t' = delSpaces str
+                    | otherwise = c : delSpaces str
