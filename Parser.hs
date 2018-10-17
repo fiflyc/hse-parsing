@@ -6,9 +6,11 @@ import Prelude hiding (lookup, (>>=), map, pred, return, elem)
 
 data AST = ASum T.Operator AST AST
          | AProd T.Operator AST AST
-         | AAssign Char AST
+         | APow T.Operator AST AST
+         | AUnary AST
+         | AAssign String AST
          | ANum Integer
-         | AIdent Char
+         | AIdent String
 
 -- TODO: Rewrite this without using Success and Error
 parse :: String -> Maybe (Result AST)
@@ -44,20 +46,48 @@ term =
     <|> return l
   )
 
-factor :: Parser AST
-factor =
+cell :: Parser AST
+cell =
+  ( unary >>= \m ->
+    cell >>= \c -> return (AUnary c)
+  )
+  <|>
   ( lparen |>
     expression >>= \e ->
     rparen |> return e -- No need to keep the parentheses
   )
   <|> identifier
-  <|> digit
+  <|> number
+
+factor :: Parser AST
+factor =
+  cell >>= \l ->
+  ( ( pow >>= \p ->
+      factor >>= \r -> return (APow p l r)
+    )
+    <|> return l
+  )
+
+number :: Parser AST
+number inp =
+  case digit inp of
+    Error err -> Error err
+    Success (ANum d, inp') ->
+      case number inp' of
+        Error _ -> Success (ANum d, inp')
+        Success (ANum n, inp'') -> Success (ANum $ imerge d n, inp'')
 
 digit :: Parser AST
-digit      = map (ANum   . T.digit) (sat T.isDigit elem)
+digit = map (ANum   . T.digit) (sat T.isDigit elem)
 
 identifier :: Parser AST
-identifier = map (AIdent . T.alpha) (sat T.isAlpha elem)
+identifier inp = 
+  case sat T.isAlpha elem inp of
+    Error str -> Error str
+    Success (c, inp') ->
+      case identifier inp' of
+        Error _ -> Success (AIdent $ c : [], inp')
+        Success (AIdent s, inp'') -> Success (AIdent $ c : s, inp'')
 
 lparen :: Parser Char
 lparen = char '('
@@ -74,6 +104,12 @@ plusMinus = map T.operator (char '+' <|> char '-')
 divMult :: Parser T.Operator
 divMult   = map T.operator (char '/' <|> char '*')
 
+pow :: Parser T.Operator
+pow = map T.operator (char '^')
+
+unary :: Parser T.Operator
+unary = map T.operator (char '-')
+
 
 
 
@@ -85,7 +121,9 @@ instance Show AST where
         (case t of
                   ASum  op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
                   AProd op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
-                  AAssign  v e -> v : " =\n" ++ show' (ident n) e
+                  APow  op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
+                  AAssign  v e -> v ++ " =\n" ++ show' (ident n) e
+                  AUnary     e -> "-\n" ++  show' (ident n) e
                   ANum   i     -> show i
                   AIdent i     -> show i)
       ident = (+1)
@@ -93,3 +131,4 @@ instance Show AST where
       showOp T.Minus = '-'
       showOp T.Mult  = '*'
       showOp T.Div   = '/'
+      showOp T.Pow   = '^'

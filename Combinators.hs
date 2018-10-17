@@ -75,3 +75,6 @@ delSpaces (c : str) | c == ' '  = delSpaces str
                     | c == '\n' = delSpaces str
                     | c == '\t' = delSpaces str
                     | otherwise = c : delSpaces str
+
+imerge :: Integer -> Integer -> Integer
+imerge a b = read $ (show a) ++ (show b) :: Integer
