@@ -13,16 +13,30 @@ data AST = ASum T.Operator AST AST
          | AIdent String
 
 -- TODO: Rewrite this without using Success and Error
-parse :: String -> Maybe (Result AST)
+parse :: String -> Maybe (Result [AST])
 parse input =
   case input of
     [] -> Nothing
-    _ -> case expression input of
-           Success (tree, ts') ->
+    _ -> case list input of
+           Success (trees, ts') ->
              if null ts'
-             then Just (Success tree)
+             then Just (Success trees)
              else Just (Error ("Syntax error on: " ++ show ts')) -- Only a prefix of the input is parsed
            Error err -> Just (Error err) -- Legitimate syntax error
+
+list :: Parser [AST]
+list inp =
+  case expression inp of
+    Success (tree, []) -> Success (tree : [], [])
+    Success (tree, inp') ->
+      case ';' == head inp' of
+        True ->
+          case list $ tail inp' of
+            Success (trees, str) -> Success (tree : trees, str)
+            Error err -> Error err
+        False -> Success (tree : [], inp')
+    Error err -> Error err
+
 
 expression :: Parser AST
 expression =
@@ -114,7 +128,7 @@ unary = map T.operator (char '-')
 
 
 instance Show AST where
-  show tree = "\n" ++ show' 0 tree
+  show tree = "\n" ++ show' 0 tree ++ "\n"
     where
       show' n t =
         (if n > 0 then \s -> concat (replicate (n - 1) "| ") ++ "|_" ++ s else id)
