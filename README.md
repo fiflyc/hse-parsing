@@ -2,20 +2,24 @@
 A simple recursive descent parser. Written for the formal languages course in HSE. The language is described with the following grammar:
 
 ```
-S -> Expr | \epsilon
+S -> Expr | S;S
 
 Expr -> Ident = Expr
-      | Term ((+ | *) Expr)?
+      | Term ((+ | -) Expr)?
+      | Term
 
 Term -> Factor ((* | /) Term)?
 
-Factor -> Ident 
+Factor -> Cell | Cell ^ Cell
+
+Cell -> Ident 
         | Num 
         | '(' Expr ')'
+        | -Cell
 
-Ident -> 'a' | 'b' | ... | 'z'
+Ident -> ('a' | 'b' | ... | 'z')+
 
-Num -> '0' | '1' | ... | '9'
+Num -> ('0' | '1' | ... | '9')+
 ```
 
 Running the build script `build.sh` generates an executable `Main`. `Main` parses several inputs specified and terminates.
