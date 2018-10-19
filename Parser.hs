@@ -2,7 +2,7 @@ module Parser (parse) where -- only expose the top-level parsing function
 
 import Combinators
 import qualified Tokenizer as T
-import Prelude hiding (lookup, (>>=), map, pred, return, elem)
+import Prelude hiding (lookup, (>>=), map, pred, return, elem, until)
 
 data AST = APart AST AST
          | ASum T.Operator AST AST
@@ -15,9 +15,10 @@ data AST = APart AST AST
 
 parse :: String -> Maybe (Result AST)
 parse []  = Nothing
-parse inp = Just $ fstres $ ( matchSpaces >>>= \_ ->
+parse inp = Just $ fstres $ ( matchSpaces >>= \_ ->
+                              matchComments >>>= \_ ->
                               exprlist >>>= \e ->
-                              isempty |>> return e
+                              empty |>> return e
                             ) inp
 
 exprlist :: Parser AST

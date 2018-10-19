@@ -29,3 +29,5 @@ main = do
   runParser "f   ;  f; f "
   runParser "1 * 2 - 3 / 4 + (-5) ^ 73; width = 14 + 128 * -length"
   runParser "hop hey lalaley gde vopros a gde otvet"
+  runParser "dvaxdva = 4;\ndvaxdva = 4\n/*\neto vsem isvestno\nv tselom\nmire\n*/"
+  runParser "//kek"

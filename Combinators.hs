@@ -1,6 +1,6 @@
 module Combinators where
 -- Make sure that the names don't clash
-import Prelude hiding (lookup, (>>=), map, pred, return, elem)
+import Prelude hiding (lookup, (>>=), map, pred, return, elem, until)
 
 -- Input abstraction
 type Input = String
@@ -35,7 +35,9 @@ p >>= q = \inp ->
 infixl 7 >>>=
 (>>>=) :: Parser a -> (a -> Parser b) -> Parser b
 p >>>= q = 
-  p >>= \pr -> 
+  p >>= \pr ->
+  matchSpaces >>= \_ ->
+  matchComments >>= \_ -> 
   matchSpaces >>= \_ -> q pr
 
 -- Sequential combinator which ignores the result of the first parser
@@ -78,24 +80,78 @@ map :: (a -> b) -> Parser a -> Parser b
 map f parser inp =
   case parser inp of
     Success (r, inp') -> Success (f r, inp')
-    Error err -> Error err 
+    Error err -> Error err
 
--- Removes spaces on the top of input, always returns Success
+-- Removes string consists comments from the top of input, always returns Success
+matchComments :: Parser String
+matchComments =
+  ( comment >>= \s1 ->
+    matchSpaces >>= \s2 ->
+    matchComments >>= \s3 -> return (s1 ++ s2 ++ s3)
+  )
+  <|> comment
+  <|> return []
+
+-- Removes spaces from the top of input, always returns Success
 matchSpaces :: Parser String
 matchSpaces [] = Success ([], [])
 matchSpaces (c : inp) =
   case c of
-    ' '   -> matchSpaces inp
-    '\n'  -> matchSpaces inp
-    '\t'  -> matchSpaces inp
+    ' '   -> (matchSpaces >>= \s -> return (' '  : s)) inp
+    '\n'  -> (matchSpaces >>= \s -> return ('\n' : s)) inp
+    '\t'  -> (matchSpaces >>= \s -> return ('\t' : s)) inp
     other -> Success ([], c : inp)
 
-isempty :: Parser Char
-isempty []   = Success ('\0', [])
-isempty str  = Error ("Syntax error on: " ++ str)
+comment :: Parser String
+comment =
+  ( lcomm |>
+    until rcomm >>= \str ->
+    return $ "//" ++ str
+  )
+  <|> ( lcomm |>
+        until empty >>= \str ->
+        return $ "//" ++ str
+      )
+  <|> ( lmulcomm |>
+        until rmulcomm >>= \str ->
+        return $ "/*" ++ str ++ "*/"
+      )
+
+empty :: Parser Char
+empty []   = Success ('\0', [])
+empty str  = Error ("Syntax error on: " ++ str)
 
 fstres :: Result (a, b) -> Result a
 fstres r =
   case r of
     Error err -> Error err
     Success (a, b) -> Success a
+
+until :: Parser a -> Parser String
+until p []  =
+  case p [] of
+    Success _ -> Success ([], [])
+    Error err -> Error err
+until p (c : inp) =
+  case p (c : inp) of
+    Success (_, inp') -> Success ([], inp')
+    Error _ -> until p inp
+
+lcomm :: Parser String
+lcomm =
+  char '/' >>= \_ ->
+  char '/' >>= \_ -> return "//"
+
+rcomm :: Parser String
+rcomm =
+  char '\n' >>= \_ -> return "\n"
+
+lmulcomm :: Parser String
+lmulcomm =
+  char '/'  >>= \_ ->
+  char '*'  >>= \_ -> return "/*"
+
+rmulcomm :: Parser String
+rmulcomm =
+  char '*'  >>= \_ ->
+  char '/'  >>= \_ -> return "*/"
