@@ -31,23 +31,32 @@ p >>= q = \inp ->
     Success (r, inp') -> q r inp'
     Error err -> Error err
 
---Like previous but ignores white spaces
+-- Like previous but ignores white spaces
 infixl 7 >>>=
 (>>>=) :: Parser a -> (a -> Parser b ) -> Parser b
-p >>>= q = \inp ->
-  case p inp of
-    Success (r, inp') -> q r (delTopSpaces inp')
-    Error err -> Error err
+p >>>= q = 
+  p >>= \pr -> 
+  matchSpaces >>= \_ -> q pr
 
 -- Sequential combinator which ignores the result of the first parser
 infixl 7 |>
 (|>) :: Parser a -> Parser b -> Parser b
 p |> q = p >>= const q
 
---Like previous but ignores white spaces
+-- Like previous but ignores white spaces
 infixl 7 |>>
 (|>>) :: Parser a -> Parser b -> Parser b
 p |>> q = p >>>= const q
+
+-- Removes spaces on the top of input, always returns Success
+matchSpaces :: Parser String
+matchSpaces [] = Success ([], [])
+matchSpaces (c : inp) =
+  case c of
+    ' '   -> matchSpaces inp
+    '\n'  -> matchSpaces inp
+    '\t'  -> matchSpaces inp
+    other -> Success ([], c : inp)
 
 -- Succeedes without consuming any input, returning a value
 return :: a -> Parser a
@@ -84,22 +93,12 @@ map f parser inp =
 imerge :: Integer -> Integer -> Integer
 imerge n m = read $ (show n) ++ (show m)
 
-empty :: Parser Char
-empty inp =
-  let inp' = delTopSpaces inp in
-  case inp' of
-    []  -> Success ('\0', [])
-    str -> Error ("Syntax error on: " ++ str)
+isempty :: Parser Char
+isempty []   = Success ('\0', [])
+isempty str  = Error ("Syntax error on: " ++ str)
 
 fstres :: Result (a, b) -> Result a
 fstres r =
   case r of
     Error err -> Error err
     Success (a, b) -> Success a
-
-delTopSpaces :: Input -> Input
-delTopSpaces []      = []
-delTopSpaces (c : s) =
-  case c == ' ' || c == '\n' || c == '\t' of
-    True -> delTopSpaces s
-    False -> c : s

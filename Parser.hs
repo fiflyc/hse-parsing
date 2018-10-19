@@ -14,13 +14,11 @@ data AST = APart AST AST
          | AIdent String
 
 parse :: String -> Maybe (Result AST)
-parse inp =
-  let inp' = delTopSpaces inp in
-  case inp' of
-    [] -> Nothing
-    _  -> Just $ fstres $ ( exprlist >>= \e ->
-                            empty |> return e
-                          ) inp'
+parse []  = Nothing
+parse inp = Just $ fstres $ ( matchSpaces >>>= \_ ->
+                              exprlist >>>= \e ->
+                              isempty |>> return e
+                            ) inp
 
 exprlist :: Parser AST
 exprlist =
