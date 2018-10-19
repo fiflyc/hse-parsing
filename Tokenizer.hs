@@ -42,3 +42,6 @@ alpha c = c
 
 isWhiteSpace :: Char -> Bool
 isWhiteSpace c = c `elem` " \t\n"
+
+isBracket :: Char -> Bool
+isBracket c = c `elem` "()"

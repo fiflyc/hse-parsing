@@ -1,6 +1,7 @@
 module Combinators where
 -- Make sure that the names don't clash
 import Prelude hiding (lookup, (>>=), map, pred, return, elem)
+import qualified Tokenizer as T(isWhiteSpace, isAlpha, isDigit, isBracket)
 
 -- Input abstraction
 type Input = String
@@ -70,11 +71,34 @@ map f parser inp =
     Error err -> Error err
 
 delSpaces :: String -> String
-delSpaces [] = []
-delSpaces (c : str) | c == ' '  = delSpaces str
-                    | c == '\n' = delSpaces str
-                    | c == '\t' = delSpaces str
-                    | otherwise = c : delSpaces str
+delSpaces []             = []
+delSpaces (c : [])       =
+  case T.isWhiteSpace c of
+    True  -> []
+    False -> c : []
+delSpaces (c1 : c2 : []) =
+  case T.isWhiteSpace c1 of
+    True  -> delSpaces $ c2 : []
+    False -> c1 : (delSpaces $ c2 : [])
+delSpaces (c1 : c2 : c3 : s)  = 
+  case T.isWhiteSpace c1 of
+    True  -> delSpaces $ c2 : c3 : s
+    False ->
+      case T.isWhiteSpace c2 of
+        True  ->
+          case T.isWhiteSpace c3 of
+            True  -> delSpaces $ c1 : c3 : s
+            False ->
+              case beTogether c1 c3 of
+                True  -> c1 : c3 : s
+                False -> c1 : c2 : c3 : s
+        False -> c1 : (delSpaces $ c2 : c3 : s)
 
 imerge :: Integer -> Integer -> Integer
 imerge a b = read $ (show a) ++ (show b) :: Integer
+
+beTogether :: Char -> Char -> Bool
+beTogether c1 c2 =
+  case T.isBracket c1 || T.isBracket c2 of
+    True -> True
+    False -> (T.isAlpha c1 || T.isDigit c1) /= (T.isAlpha c2 || T.isDigit c2)
