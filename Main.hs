@@ -12,9 +12,9 @@ runParser input = do
   putStrLn ""
 
 instance {-# OVERLAPPING #-} Show a => Show (Maybe (Result a)) where
-  show (Just (Success tree)) = show tree
-  show (Just (Error err)) = "Syntax error: " ++ err
-  show Nothing = "Empty tree"
+  show (Just (Success tree)) = show tree ++ "\n"
+  show (Just (Error err)) = "\nSyntax error: " ++ err
+  show Nothing = "\nEmpty tree"
 
 main :: IO ()
 main = do
@@ -31,3 +31,4 @@ main = do
   runParser "hop hey lalaley gde vopros a gde otvet"
   runParser "dvaxdva = 4;\ndvaxdva = 4\n/*\neto vsem isvestno\nv tselom\nmire\n*/"
   runParser "//kek"
+  runParser "@\nOut in the distance\nThere's so much gold\nThe treasure that I've found\nIs more than enough\nFar to the hill we've to go"

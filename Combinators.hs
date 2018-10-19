@@ -116,6 +116,10 @@ comment =
         until rmulcomm >>= \str ->
         return $ "/*" ++ str ++ "*/"
       )
+  <|> ( lastcomm |>
+        until empty >>= \str ->
+        return $ "@" ++ str
+      )
 
 empty :: Parser Char
 empty []   = Success ('\0', [])
@@ -155,3 +159,7 @@ rmulcomm :: Parser String
 rmulcomm =
   char '*'  >>= \_ ->
   char '/'  >>= \_ -> return "*/"
+
+lastcomm :: Parser String
+lastcomm =
+  char '@' >>= \_ -> return "@"
