@@ -4,7 +4,8 @@ import Combinators
 import qualified Tokenizer as T
 import Prelude hiding (lookup, (>>=), map, pred, return, elem)
 
-data AST = ASum T.Operator AST AST
+data AST = APart AST AST
+         | ASum T.Operator AST AST
          | AProd T.Operator AST AST
          | APow T.Operator AST AST
          | AUnary AST
@@ -12,96 +13,86 @@ data AST = ASum T.Operator AST AST
          | ANum Integer
          | AIdent String
 
--- TODO: Rewrite this without using Success and Error
-parse :: String -> Maybe (Result [AST])
-parse input =
-  case input of
+parse :: String -> Maybe (Result AST)
+parse inp =
+  let inp' = delTopSpaces inp in
+  case inp' of
     [] -> Nothing
-    _ -> case list input of
-           Success (trees, ts') ->
-             if null ts'
-             then Just (Success trees)
-             else Just (Error ("Syntax error on: " ++ show ts')) -- Only a prefix of the input is parsed
-           Error err -> Just (Error err) -- Legitimate syntax error
+    _  -> Just $ fstres $ ( exprlist >>= \e ->
+                            empty |> return e
+                          ) inp'
 
-list :: Parser [AST]
-list inp =
-  case expression inp of
-    Success (tree, []) -> Success (tree : [], [])
-    Success (tree, inp') ->
-      case ';' == head inp' of
-        True ->
-          case list $ tail inp' of
-            Success (trees, str) -> Success (tree : trees, str)
-            Error err -> Error err
-        False -> Success (tree : [], inp')
-    Error err -> Error err
-
+exprlist :: Parser AST
+exprlist =
+  ( expression >>>= \e ->
+    separator |>>
+    exprlist >>>= \l -> return (APart e l)
+  )
+  <|> expression
 
 expression :: Parser AST
 expression =
-  ( identifier >>= \(AIdent i) ->
-    assignment |>
-    expression >>= \e -> return (AAssign i e)
+  ( identifier >>>= \(AIdent i) ->
+    assignment |>>
+    expression >>>= \e -> return (AAssign i e)
   )
-  <|> ( term       >>= \l  -> -- Here the identifier is parsed twice :(
-        plusMinus  >>= \op ->
-        expression >>= \r  -> return (ASum op l r)
+  <|> ( term       >>>= \l  -> -- Here the identifier is parsed twice :(
+        plusMinus  >>>= \op ->
+        expression >>>= \r  -> return (ASum op l r)
       )
   <|> term
 
 term :: Parser AST
 term =
   -- make sure we don't reparse the factor (Term -> Factor (('/' | '*') Term | epsilon ))
-  factor >>= \l ->
-  ( ( divMult >>= \op ->
-      term    >>= \r  -> return (AProd op l r)
+  factor >>>= \l ->
+  ( ( divMult >>>= \op ->
+      term    >>>= \r  -> return (AProd op l r)
     )
     <|> return l
   )
 
 cell :: Parser AST
 cell =
-  ( unary >>= \m ->
-    cell >>= \c -> return (AUnary c)
+  ( unary >>>= \m ->
+    cell >>>= \c -> return (AUnary c)
   )
   <|>
-  ( lparen |>
-    expression >>= \e ->
-    rparen |> return e -- No need to keep the parentheses
+  ( lparen |>>
+    expression >>>= \e ->
+    rparen |>> return e -- No need to keep the parentheses
   )
   <|> identifier
   <|> number
 
 factor :: Parser AST
 factor =
-  cell >>= \l ->
-  ( ( pow >>= \p ->
-      factor >>= \r -> return (APow p l r)
+  cell >>>= \l ->
+  ( ( pow >>>= \p ->
+      factor >>>= \r -> return (APow p l r)
     )
     <|> return l
   )
 
 number :: Parser AST
-number inp =
-  case digit inp of
-    Error err -> Error err
-    Success (ANum d, inp') ->
-      case number inp' of
-        Error _ -> Success (ANum d, inp')
-        Success (ANum n, inp'') -> Success (ANum $ imerge d n, inp'')
-
-digit :: Parser AST
-digit = map (ANum   . T.digit) (sat T.isDigit elem)
+number =
+  ( digit >>=  \d ->
+    number >>= \(ANum n) -> return (ANum $ imerge d n)
+  )
+  <|> digit >>= \d -> return (ANum d)
 
 identifier :: Parser AST
-identifier inp = 
-  case sat T.isAlpha elem inp of
-    Error str -> Error str
-    Success (c, inp') ->
-      case identifier inp' of
-        Error _ -> Success (AIdent $ c : [], inp')
-        Success (AIdent s, inp'') -> Success (AIdent $ c : s, inp'')
+identifier =
+  ( symb >>= \c ->
+    identifier >>= \(AIdent s) -> return (AIdent $ c : s)
+  )
+  <|> symb >>= \c -> return (AIdent $ c : [])
+
+digit :: Parser Integer
+digit = map T.digit (sat T.isDigit elem)
+
+symb :: Parser Char
+symb = sat T.isAlpha elem
 
 lparen :: Parser Char
 lparen = char '('
@@ -124,15 +115,19 @@ pow = map T.operator (char '^')
 unary :: Parser T.Operator
 unary = map T.operator (char '-')
 
+separator :: Parser Char
+separator = char ';'
+
 
 
 
 instance Show AST where
-  show tree = "\n" ++ show' 0 tree ++ "\n"
+  show tree = show' 0 tree
     where
       show' n t =
         (if n > 0 then \s -> concat (replicate (n - 1) "| ") ++ "|_" ++ s else id)
         (case t of
+                  APart l r    -> ";\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
                   ASum  op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
                   AProd op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r
                   APow  op l r -> showOp op : "\n" ++ show' (ident n) l ++ "\n" ++ show' (ident n) r

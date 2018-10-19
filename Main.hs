@@ -7,7 +7,7 @@ import Combinators (Result (Success, Error))
 
 runParser :: String -> IO ()
 runParser input = do
-  putStrLn $ input ++ "\n"
+  putStrLn input
   print $ parse input
   putStrLn ""
 
@@ -28,3 +28,4 @@ main = do
   runParser "12 * 13 + (-2) * 3^(1 + 1)^(-1) + 20 / (-4)"
   runParser "f   ;  f; f "
   runParser "1 * 2 - 3 / 4 + (-5) ^ 73; width = 14 + 128 * -length"
+  runParser "hop hey lalaley gde vopros a gde otvet"

@@ -1,7 +1,6 @@
 module Combinators where
 -- Make sure that the names don't clash
 import Prelude hiding (lookup, (>>=), map, pred, return, elem)
-import qualified Tokenizer as T(isWhiteSpace, isAlpha, isDigit, isBracket)
 
 -- Input abstraction
 type Input = String
@@ -18,10 +17,9 @@ type Parser r = Input -> Result (r, Input)
 -- Left biased: make sure, that the first parser consumes more input
 infixl 6 <|>
 (<|>) :: Parser a -> Parser a -> Parser a
-p <|> q = \inp ->
-  let inp' = delSpaces inp in
-  case p inp' of
-    Error _ -> q inp'
+p <|> q = \inp -> 
+  case p inp of
+    Error _ -> q inp
     result  -> result
 
 -- Sequential combinator: if the first parser successfully parses some prefix, the second is run on the suffix
@@ -33,10 +31,23 @@ p >>= q = \inp ->
     Success (r, inp') -> q r inp'
     Error err -> Error err
 
+--Like previous but ignores white spaces
+infixl 7 >>>=
+(>>>=) :: Parser a -> (a -> Parser b ) -> Parser b
+p >>>= q = \inp ->
+  case p inp of
+    Success (r, inp') -> q r (delTopSpaces inp')
+    Error err -> Error err
+
 -- Sequential combinator which ignores the result of the first parser
 infixl 7 |>
 (|>) :: Parser a -> Parser b -> Parser b
 p |> q = p >>= const q
+
+--Like previous but ignores white spaces
+infixl 7 |>>
+(|>>) :: Parser a -> Parser b -> Parser b
+p |>> q = p >>>= const q
 
 -- Succeedes without consuming any input, returning a value
 return :: a -> Parser a
@@ -70,35 +81,25 @@ map f parser inp =
     Success (r, inp') -> Success (f r, inp')
     Error err -> Error err
 
-delSpaces :: String -> String
-delSpaces []             = []
-delSpaces (c : [])       =
-  case T.isWhiteSpace c of
-    True  -> []
-    False -> c : []
-delSpaces (c1 : c2 : []) =
-  case T.isWhiteSpace c1 of
-    True  -> delSpaces $ c2 : []
-    False -> c1 : (delSpaces $ c2 : [])
-delSpaces (c1 : c2 : c3 : s)  = 
-  case T.isWhiteSpace c1 of
-    True  -> delSpaces $ c2 : c3 : s
-    False ->
-      case T.isWhiteSpace c2 of
-        True  ->
-          case T.isWhiteSpace c3 of
-            True  -> delSpaces $ c1 : c3 : s
-            False ->
-              case beTogether c1 c3 of
-                True  -> c1 : c3 : s
-                False -> c1 : c2 : c3 : s
-        False -> c1 : (delSpaces $ c2 : c3 : s)
-
 imerge :: Integer -> Integer -> Integer
-imerge a b = read $ (show a) ++ (show b) :: Integer
+imerge n m = read $ (show n) ++ (show m)
 
-beTogether :: Char -> Char -> Bool
-beTogether c1 c2 =
-  case T.isBracket c1 || T.isBracket c2 of
-    True -> True
-    False -> (T.isAlpha c1 || T.isDigit c1) /= (T.isAlpha c2 || T.isDigit c2)
+empty :: Parser Char
+empty inp =
+  let inp' = delTopSpaces inp in
+  case inp' of
+    []  -> Success ('\0', [])
+    str -> Error ("Syntax error on: " ++ str)
+
+fstres :: Result (a, b) -> Result a
+fstres r =
+  case r of
+    Error err -> Error err
+    Success (a, b) -> Success a
+
+delTopSpaces :: Input -> Input
+delTopSpaces []      = []
+delTopSpaces (c : s) =
+  case c == ' ' || c == '\n' || c == '\t' of
+    True -> delTopSpaces s
+    False -> c : s
