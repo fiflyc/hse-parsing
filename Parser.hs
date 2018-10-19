@@ -74,6 +74,7 @@ factor =
 
 number :: Parser AST
 number =
+  let imerge n m = read $ (show n) ++ (show m) in
   ( digit >>=  \d ->
     number >>= \(ANum n) -> return (ANum $ imerge d n)
   )
@@ -81,16 +82,16 @@ number =
 
 identifier :: Parser AST
 identifier =
-  ( symb >>= \c ->
+  ( letter >>= \c ->
     identifier >>= \(AIdent s) -> return (AIdent $ c : s)
   )
-  <|> symb >>= \c -> return (AIdent $ c : [])
+  <|> letter >>= \c -> return (AIdent $ c : [])
 
 digit :: Parser Integer
 digit = map T.digit (sat T.isDigit elem)
 
-symb :: Parser Char
-symb = sat T.isAlpha elem
+letter :: Parser Char
+letter = sat T.isAlpha elem
 
 lparen :: Parser Char
 lparen = char '('

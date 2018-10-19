@@ -25,7 +25,7 @@ p <|> q = \inp ->
 -- Sequential combinator: if the first parser successfully parses some prefix, the second is run on the suffix
 -- The second parser is supposed to use the result of the first parser
 infixl 7 >>=
-(>>=) :: Parser a -> (a -> Parser b ) -> Parser b
+(>>=) :: Parser a -> (a -> Parser b) -> Parser b
 p >>= q = \inp ->
   case p inp of
     Success (r, inp') -> q r inp'
@@ -33,7 +33,7 @@ p >>= q = \inp ->
 
 -- Like previous but ignores white spaces
 infixl 7 >>>=
-(>>>=) :: Parser a -> (a -> Parser b ) -> Parser b
+(>>>=) :: Parser a -> (a -> Parser b) -> Parser b
 p >>>= q = 
   p >>= \pr -> 
   matchSpaces >>= \_ -> q pr
@@ -47,16 +47,6 @@ p |> q = p >>= const q
 infixl 7 |>>
 (|>>) :: Parser a -> Parser b -> Parser b
 p |>> q = p >>>= const q
-
--- Removes spaces on the top of input, always returns Success
-matchSpaces :: Parser String
-matchSpaces [] = Success ([], [])
-matchSpaces (c : inp) =
-  case c of
-    ' '   -> matchSpaces inp
-    '\n'  -> matchSpaces inp
-    '\t'  -> matchSpaces inp
-    other -> Success ([], c : inp)
 
 -- Succeedes without consuming any input, returning a value
 return :: a -> Parser a
@@ -88,10 +78,17 @@ map :: (a -> b) -> Parser a -> Parser b
 map f parser inp =
   case parser inp of
     Success (r, inp') -> Success (f r, inp')
-    Error err -> Error err
+    Error err -> Error err 
 
-imerge :: Integer -> Integer -> Integer
-imerge n m = read $ (show n) ++ (show m)
+-- Removes spaces on the top of input, always returns Success
+matchSpaces :: Parser String
+matchSpaces [] = Success ([], [])
+matchSpaces (c : inp) =
+  case c of
+    ' '   -> matchSpaces inp
+    '\n'  -> matchSpaces inp
+    '\t'  -> matchSpaces inp
+    other -> Success ([], c : inp)
 
 isempty :: Parser Char
 isempty []   = Success ('\0', [])
